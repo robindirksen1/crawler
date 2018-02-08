@@ -32,6 +32,9 @@ class Crawler
     /** @var array[\Spatie\Crawler\CrawlObserver] */
     protected $crawlObservers;
 
+    /** @var array[\Spatie\Crawler\CrawlObserver] */
+    protected $crawlObserversWithLog;
+
     /** @var \Spatie\Crawler\CrawlProfile */
     protected $crawlProfile;
 
@@ -194,6 +197,13 @@ class Crawler
     public function setCrawlObservers(array $crawlObservers)
     {
         $this->crawlObservers = $crawlObservers;
+        $this->crawlObserversWithLog = [];
+        
+        foreach($crawlObservers as $crawlObserver) {
+            if(method_exists($crawlObserver, 'urlFoundOnPage')) {
+                $this->crawlObserversWithLog[] = $crawlObserver;
+            }
+        }
 
         return $this;
     }
@@ -201,6 +211,10 @@ class Crawler
     public function addCrawlObserver(CrawlObserver $crawlObserver)
     {
         $this->crawlObservers[] = $crawlObserver;
+        
+        if(method_exists($crawlObserver, 'urlFoundOnPage')) {
+            $this->crawlObserversWithLog[] = $crawlObserver;
+        }
 
         return $this;
     }
@@ -345,6 +359,12 @@ class Crawler
             })
             ->filter(function (UriInterface $url) {
                 return $this->crawlProfile->shouldCrawl($url);
+            })
+            ->each(function(UriInterface $url) use ($foundOnUrl) {
+                //add all links to the crawlobserver for optional log
+                foreach ($this->crawlObserversWithLog as $crawlObserver) {
+                    $crawlObserver->urlFoundOnPage($url, $foundOnUrl);
+                }
             })
             ->reject(function (UriInterface $url) {
                 return $this->crawlQueue->has($url);
